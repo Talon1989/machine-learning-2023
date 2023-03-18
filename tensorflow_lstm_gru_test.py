@@ -23,7 +23,8 @@ model = keras.models.Sequential()
 model.add(
     keras.layers.Embedding(input_dim=NUM_DISTINCT_WORDS, output_dim=EMBEDDING_OUTPUT_DIMS, input_length=MAX_SEQUENCE_LENGTH)
 )
-model.add(keras.layers.LSTM(units=10))
+# model.add(keras.layers.LSTM(units=10))
+model.add(keras.layers.GRU(units=10))
 model.add(keras.layers.Dense(units=1, activation='sigmoid'))
 model.compile(
     optimizer=keras.optimizers.Adam(),
