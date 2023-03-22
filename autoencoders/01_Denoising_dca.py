@@ -28,25 +28,54 @@ optimizer = keras.optimizers.Adam(learning_rate=0.001)
 train_loss = keras.metrics.Mean(name='train_loss')
 
 
+def visualize_noise_data():
+    Xs = np.reshape(X_train[0: 10], [10, width, height, 1])
+    sns.set()
+    fig, ax = plt.subplots(nrows=2, ncols=10, figsize=[18, 4])
+    X_noise_gauss = np.clip(Xs + np.random.normal(0., 0.2, size=[10, width, height, 1]), a_min=0., a_max=1.)
+    X_noise_dropout = Xs * np.random.binomial(n=1, p=0.5, size=[10, width, height, 1])
+    for i in range(10):
+        ax[0, i].imshow(np.squeeze(X_noise_gauss[i]), cmap='gray')
+        ax[0, i].set_xticks([])
+        ax[0, i].set_yticks([])
+        ax[1, i].imshow(X_noise_dropout[i], cmap='gray')
+        ax[1, i].set_xticks([])
+        ax[1, i].set_yticks([])
+    plt.show()
+    plt.clf()
+
+
 @tf.function
-def learn(images):
+def learn(noisy_images, images):
     with tf.GradientTape() as tape:
-        reconstruction = model(images)
+        reconstruction = model(noisy_images)
         loss = keras.losses.MSE(model.r_images(images), reconstruction)
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     train_loss(loss)
 
 
-def train():
+def train_noisy_gaussian():
     for ep in range(1, N_EPOCHS+1):
         for x_i in X_train_g:
-            learn(x_i)
+            x_noisy = np.clip(x_i + np.random.normal(0., 0.2, size=[BATCH_SIZE, width, height, 1]), a_min=0., a_max=1.)
+            learn(x_noisy, x_i)
         print('Epoch %d | Loss: %.3f' % (ep, train_loss.result()))
         train_loss.reset_states()
 
 
-train()
+def train_noisy_dropout(p=1/5):
+    for ep in range(1, N_EPOCHS+1):
+        for x_i in X_train_g:
+            dropout_noise = np.random.binomial(n=1, p=p, size=[BATCH_SIZE, width, height, 1])
+            x_noisy = x_i * dropout_noise
+            learn(x_noisy, x_i)
+        print('Epoch %d | Loss: %.3f' % (ep, train_loss.result()))
+        train_loss.reset_states()
+
+
+train_noisy_gaussian()
+# train_noisy_dropout()
 
 
 codes = model.encoder(np.expand_dims(X_train, axis=3))
@@ -66,490 +95,6 @@ for i in range(10):
     ax[1, i].set_yticks([])
 plt.show()
 plt.clf()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
