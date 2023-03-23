@@ -7,6 +7,11 @@ from Autoencoder import DAC
 import param
 
 
+np.random.seed(1000)
+tf.random.set_seed(1000)
+
+
+# CODE_LENGTH = 576
 (X_train, _), (_, _) = keras.datasets.fashion_mnist.load_data()
 X_train = X_train.astype(np.float32)[0: param.N_SAMPLES] / 255.
 width = X_train.shape[1]
@@ -17,19 +22,15 @@ X_train_g = tf.data.Dataset.from_tensor_slices(
 ).shuffle(1000).batch(param.BATCH_SIZE)
 
 
-model = DAC(param.CODE_LENGTH)
-optimizer = keras.optimizers.Adam(learning_rate=0.001)
+model = DAC(param.CODE_LENGTH, sparse=True)
+optimizer = keras.optimizers.Adam(1/1_000)
 train_loss = keras.metrics.Mean(name='train_loss')
 
 
-# @tf.function
+@tf.function
 def learn(images):
     with tf.GradientTape() as tape:
-        reconstruction = model(images)
-        # print(images.shape)
-        # print(model.r_images(images).shape)
-        # print(reconstruction.shape)
-        loss = keras.losses.MSE(model.r_images(images), reconstruction)
+        loss = keras.losses.MSE(model.r_images(images), model(images))
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
     train_loss(loss)
@@ -62,228 +63,6 @@ for i in range(10):
     ax[1, i].set_xticks([])
     ax[1, i].set_yticks([])
 plt.show()
-plt.clf()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
