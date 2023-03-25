@@ -71,7 +71,7 @@ train_loss = keras.metrics.Mean(name='train_loss')
 def learn(images):
     with tf.GradientTape() as tape:
         logits, mu, std, _ = model(images)
-        loss_r = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=images)
+        loss_r = tf.nn.sigmoid_cross_entropy_with_logits(labels=images, logits=logits)
         kl_divergence = 1/2 * tf.reduce_sum(
             tf.math.square(mu) + tf.math.square(std) - tf.math.log(tf.math.square(std) + 1e-8) - 1,
             axis=1
