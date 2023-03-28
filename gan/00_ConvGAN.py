@@ -37,10 +37,13 @@ def learn(x_i):
         z_d1 = run_discriminator(x_i, training=True)
         z_d2 = run_discriminator(x_g, training=True)
 
-        loss_d1 = keras.losses.BinaryCrossentropy(from_logits=True)(tf.ones_like(z_d1), z_d1)
-        loss_d2 = keras.losses.BinaryCrossentropy(from_logits=True)(tf.zeros_like(z_d2), z_d2)
+        binary_cross_entropy = keras.losses.BinaryCrossentropy(from_logits=True)
+        loss_d1 = binary_cross_entropy(tf.ones_like(z_d1), z_d1)
+        loss_d2 = binary_cross_entropy(tf.zeros_like(z_d2), z_d2)
         loss_dis = loss_d1 + loss_d2
-        loss_gen = keras.losses.BinaryCrossentropy(from_logits=True)(tf.ones_like(z_d2), z_d2)
+        # loss_gen = keras.losses.BinaryCrossentropy(from_logits=True)(tf.ones_like(z_d2), z_d2)
+        loss_gen = binary_cross_entropy(tf.ones_like(z_d2), z_d2)
+        # loss_gen = loss_d2
 
     grad_gen = tape_gen.gradient(loss_gen, generator.trainable_variables)
     grad_dis = tape_dis.gradient(loss_dis, discriminator.trainable_variables)

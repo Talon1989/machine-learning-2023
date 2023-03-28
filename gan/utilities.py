@@ -4,10 +4,9 @@ keras = tf.keras
 
 
 # N_SAMPLES = 5_000
-N_SAMPLES = 2_000
+N_SAMPLES = 1_000
 CODE_LENGTH = 100
-# N_EPOCHS = 50
-N_EPOCHS = 20
+N_EPOCHS = 50
 BATCH_SIZE = 2**7
 
 
