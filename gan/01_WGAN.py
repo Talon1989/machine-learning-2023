@@ -13,66 +13,12 @@ N_CRITIC = 5
 # CODE_LENGTH = 256
 
 
-custom_generator = keras.models.Sequential([
-    keras.layers.Conv2DTranspose(
-        input_shape=[1, 1, CODE_LENGTH], filters=2**10, kernel_size=[4, 4], padding='valid', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2DTranspose(
-        filters=2**9, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2DTranspose(
-        filters=2**8, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2DTranspose(
-        filters=2**7, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2DTranspose(
-        filters=1, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='tanh'
-    )
-])
-
-
-custom_discriminator = keras.models.Sequential([
-    keras.layers.Conv2D(
-        input_shape=[64, 64, 1], filters=2**7, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    # keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2D(
-        filters=2**8, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2D(
-        filters=2**9, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2D(
-        filters=2**10, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
-    ),
-    keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(),
-    keras.layers.Conv2D(
-        filters=1, kernel_size=[4, 4], padding='valid', activation='linear'
-    )
-])
-
-
-generator = custom_generator
+generator = generator
 optimizer_gen = keras.optimizers.Adam(learning_rate=5/10_000, beta_1=1/2, beta_2=9/10)
 train_loss_gen = keras.metrics.Mean(name='train_loss')
 
 
-discriminator = custom_discriminator
+discriminator = discriminator
 optimizer_dis = keras.optimizers.Adam(learning_rate=5/10_000, beta_1=1/2, beta_2=9/10)
 train_loss_dis = keras.metrics.Mean(name='train_loss')
 
@@ -91,9 +37,9 @@ def run_model(x_i, z_n, training=False):
     x_g = run_generator(z_n, training=training)
     z_d1 = run_discriminator(x_i, training=training)
     z_d2 = run_discriminator(x_g, training=training)
-    print(z_d2.shape)
-    print(z_d1.shape)
-    print()
+    # print(z_d2.shape)
+    # print(z_d1.shape)
+    # print()
     loss_discriminator = tf.reduce_mean(z_d2 - z_d1)
     loss_generator = tf.reduce_mean(-z_d2)
     return loss_discriminator, loss_generator
@@ -101,7 +47,6 @@ def run_model(x_i, z_n, training=False):
 
 # @tf.function
 def learn_discriminator(x_i):
-    print('learning discriminator')
     # z_n = tf.random.uniform([BATCH_SIZE, CODE_LENGTH], -1., 1.)
     z_n = tf.random.uniform([x_i.shape[0], CODE_LENGTH], -1., 1.)
     with tf.GradientTape() as tape:
@@ -115,7 +60,6 @@ def learn_discriminator(x_i):
 
 # @tf.function
 def learn_generator():
-    print('learning generator')
     z_n = tf.random.uniform([BATCH_SIZE, CODE_LENGTH], -1., 1.)
     x_g = tf.zeros([BATCH_SIZE, width, height, 1])  # don't need discriminator values of true distribution
     with tf.GradientTape() as tape:
@@ -138,7 +82,6 @@ X_train_g = tf.data.Dataset.from_tensor_slices(
 def train():
     for e in range(N_EPOCHS):
         for x_i in X_train_g:
-            print(e)
             # for i in range(N_CRITIC):
             #     learn_discriminator(x_i[i * BATCH_SIZE: (i+1) * BATCH_SIZE])
             learn_discriminator(x_i)
