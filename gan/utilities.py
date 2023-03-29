@@ -16,7 +16,7 @@ generator = keras.models.Sequential([
         input_shape=[1, 1, CODE_LENGTH], filters=2**10, kernel_size=[4, 4], padding='valid', activation='linear'
     ),
     keras.layers.BatchNormalization(),
-    keras.layers.LeakyReLU(alpha=3/10),
+    keras.layers.LeakyReLU(),
     keras.layers.Conv2DTranspose(
         filters=2**9, kernel_size=[4, 4], strides=[2, 2], padding='same', activation='linear'
     ),
