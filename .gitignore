@@ -139,3 +139,5 @@ dmypy.json
 cython_debug/
 
 data/iris.csv
+/data/sunspots.csv
+/data/airline_passengers.cvs

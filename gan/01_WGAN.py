@@ -45,7 +45,7 @@ def run_model(x_i, z_n, training=False):
     return loss_discriminator, loss_generator
 
 
-# @tf.function
+@tf.function
 def learn_discriminator(x_i):
     # z_n = tf.random.uniform([BATCH_SIZE, CODE_LENGTH], -1., 1.)
     z_n = tf.random.uniform([x_i.shape[0], CODE_LENGTH], -1., 1.)
@@ -58,7 +58,7 @@ def learn_discriminator(x_i):
     train_loss_dis(loss_discriminator)
 
 
-# @tf.function
+@tf.function
 def learn_generator():
     z_n = tf.random.uniform([BATCH_SIZE, CODE_LENGTH], -1., 1.)
     x_g = tf.zeros([BATCH_SIZE, width, height, 1])  # don't need discriminator values of true distribution
