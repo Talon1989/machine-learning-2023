@@ -56,7 +56,20 @@ def create_sequential_dataset(dataset, look_back=1):
     return np.array(dataX), np.array(dataY)
 
 
+# def og_create_sequential_dataset_2(dataset, look_back=1):
+#     """
+#     :param dataset:
+#     :param look_back:
+#     :return: 2 arrays, first is array of sequences of # look_back, second is array of values right after the end of sequences
+#     """
+#     dataX, dataY = [], []
+#     for i in range(len(dataset)-look_back):
+#         dataX.append(dataset[i: i+look_back])
+#         dataY.append(dataset[i+1: i+look_back+1])
+#     return dataX, dataY
 #  hardcoded to work with pytorch
+
+
 def create_sequential_dataset_2(dataset, look_back=1):
     """
     :param dataset:
@@ -66,19 +79,8 @@ def create_sequential_dataset_2(dataset, look_back=1):
     dataX, dataY = [], []
     for i in range(len(dataset)-look_back):
         dataX.append(dataset[i: i+look_back])
-        dataY.append(dataset[i+1: i+look_back+1])
+        dataY.append(dataset[i+look_back])
     return dataX, dataY
-# def create_sequential_dataset_2(dataset, look_back=1):
-#     """
-#     :param dataset:
-#     :param look_back:
-#     :return: 2 arrays, first is array of sequences of # look_back, second is array of values right after the end of sequences
-#     """
-#     dataX, dataY = [], []
-#     for i in range(len(dataset)-look_back):
-#         dataX.append(dataset[i: i+look_back])
-#         dataY.append(dataset[i+look_back])
-#     return dataX, dataY
 
 
 

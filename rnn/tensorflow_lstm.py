@@ -18,9 +18,10 @@ dataset = scaler.fit_transform(dataset)
 
 # train_size = int(len(dataset) * 0.67)
 X_train, X_test = train_test_split(dataset, train_size=1/2, shuffle=False)
-sequence_length = 2
+sequence_length = 3
 X_train_seq, Y_train_next = create_sequential_dataset(dataset=X_train, look_back=sequence_length)
 X_test_seq, Y_test_next = create_sequential_dataset(dataset=X_test, look_back=sequence_length)
+
 #  reshape input to [samples, time_steps, features]
 X_train_seq = np.reshape(X_train_seq, [X_train_seq.shape[0], 1, X_train_seq.shape[1]])
 X_test_seq = np.reshape(X_test_seq, [X_test_seq.shape[0], 1, X_test_seq.shape[1]])

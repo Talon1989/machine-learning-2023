@@ -22,27 +22,29 @@ dataset = scaler.fit_transform(dataset)
 X_train, X_test = train_test_split(dataset, train_size=1/2, shuffle=False)
 sequence_length = 1
 
-# X_train_seq, Y_train_next = create_sequential_dataset(dataset=X_train, look_back=sequence_length)
-# X_test_seq, Y_test_next = create_sequential_dataset(dataset=X_test, look_back=sequence_length)
-# X_train_seq = np.reshape(X_train_seq, [X_train_seq.shape[0], 1, X_train_seq.shape[1]])
-# X_test_seq = np.reshape(X_test_seq, [X_test_seq.shape[0], 1, X_test_seq.shape[1]])
-
 X_train_seq, Y_train_next = create_sequential_dataset_2(dataset=X_train, look_back=sequence_length)
 X_test_seq, Y_test_next = create_sequential_dataset_2(dataset=X_test, look_back=sequence_length)
 
 
-#  reshape input to [samples, time_steps, features]
 X_train_seq = torch.tensor(X_train_seq)
+X_train_seq = torch.squeeze(X_train_seq, dim=2)
+
 Y_train_next = torch.tensor(Y_train_next)
+Y_train_next = torch.reshape(Y_train_next, [-1, 1])
+
 X_test_seq = torch.tensor(X_test_seq)
+X_test_seq = torch.squeeze(X_test_seq, dim=2)
+
 Y_test_next = torch.tensor(Y_test_next)
+Y_test_next = torch.reshape(Y_test_next, [-1, 1])
 
 
 class Model(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.lstm = nn.LSTM(input_size=1, hidden_size=50, num_layers=1, batch_first=True)
+        # self.lstm = nn.LSTM(input_size=1, hidden_size=50, num_layers=1, batch_first=True)
+        self.lstm = nn.LSTM(input_size=sequence_length, hidden_size=50, num_layers=1, batch_first=True)
         self.linear = nn.Linear(in_features=50, out_features=1)
 
     def forward(self, x):
@@ -54,7 +56,8 @@ model = Model()
 optimizer = torch.optim.Adam(params=model.parameters())
 loss_function = nn.MSELoss()
 loader = data.DataLoader(data.TensorDataset(X_train_seq, Y_train_next), shuffle=True, batch_size=8)
-epochs = 2_000
+# epochs = 2_000
+epochs = 500
 for e in range(1, epochs+1):
     model.train()
     for X_batch, y_batch in loader:
@@ -70,10 +73,11 @@ for e in range(1, epochs+1):
         train_error = np.sqrt(loss_function(model(X_train_seq), Y_train_next))
         test_error = np.sqrt(loss_function(model(X_test_seq), Y_test_next))
     print('Epoch %d | Train RMSE %.4f | Test RMSE %.4f' % (e, train_error, test_error))
-
-
+#
+#
 with torch.no_grad():
     predictions = model(X_test_seq)
-    print_graph(np.squeeze(predictions), np.squeeze(Y_test_next), 'predicted data', 'true data', 'LSTM', 'month', False)
+#     print_graph(np.squeeze(predictions), np.squeeze(Y_test_next), 'predicted data', 'true data', 'LSTM', 'month', False)
+    print_graph(predictions, Y_test_next, 'predicted data', 'true data', 'LSTM', 'month', False)
 
 
