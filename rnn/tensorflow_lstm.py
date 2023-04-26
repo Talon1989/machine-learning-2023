@@ -27,7 +27,8 @@ X_train_seq = np.reshape(X_train_seq, [X_train_seq.shape[0], 1, X_train_seq.shap
 X_test_seq = np.reshape(X_test_seq, [X_test_seq.shape[0], 1, X_test_seq.shape[1]])
 
 model = keras.models.Sequential([
-    keras.layers.LSTM(units=4, input_shape=(1, sequence_length)),
+    # keras.layers.LSTM(units=4, input_shape=(1, sequence_length)),
+    keras.layers.GRU(units=4, input_shape=(1, sequence_length)),
     keras.layers.Dense(units=16, activation='relu'),
     keras.layers.Dense(units=1, activation='linear')
 ])
