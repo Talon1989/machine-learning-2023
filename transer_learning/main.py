@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import tensorflow as tf
 keras = tf.keras
+from CustomUtilities import print_graph
 
 
 """
@@ -80,34 +81,121 @@ def show_some_image_augmentations(n=9):
 
 
 #  get the base model
+
 mobile_net_v2 = keras.applications.MobileNetV2(
     input_shape=IMG_SIZE + [3, ],
     include_top=False,
     weights='imagenet'
 )
+image_batch, label_batch = next(iter(train_dataset))
+feature_batch = mobile_net_v2(image_batch)
+print(feature_batch.shape)
 
 
+#  Freeze the convolutional base
+
+#  When you set layer.trainable = False
+#  the BatchNormalization layer will run in inference mode, and will not update its mean and variance statistics.
+
+mobile_net_v2.trainable = False
 
 
+#  Add a classification layers for output
+
+global_average_layer = keras.layers.GlobalAveragePooling2D()
+feature_batch_average = global_average_layer(feature_batch)
+
+print(feature_batch_average.shape)
+
+prediction_layer = keras.layers.Dense(units=1)
+prediction_batch = prediction_layer(feature_batch_average)
+
+print(prediction_batch.shape)
 
 
+#  Model building
+
+inputs = keras.Input(shape=mobile_net_v2.input_shape[1:])  # first element is None
+x = data_augmentation(inputs)
+x = keras.applications.mobilenet_v2.preprocess_input(x)  # turns range [-1, 1] into [0, 255]
+x = mobile_net_v2(x, training=False)
+x = global_average_layer(x)
+x = keras.layers.Dropout(2/10)(x)
+outputs = prediction_layer(x)
+model = keras.Model(inputs, outputs)
+
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1/10_000),
+    loss=keras.losses.BinaryCrossentropy(from_logits=True),
+    metrics=['accuracy']
+)
 
 
+#  Training
+
+epochs = 10
+loss, accuracy = model.evaluate(validation_dataset)
+print('Initial Loss : %.3f\nInitial Accuracy: %.3f' % (loss, accuracy))
+history = model.fit(
+    train_dataset, validation_data=validation_dataset, epochs=epochs
+)
+print_graph(history.history['loss'], history.history['val_loss'], 'Training Accuracy', 'Validation Accuracy',
+            'Transfer Learning Accuracy', scatter=False)
+
+acc = history.history['accuracy']
+val_acc = history.history['val_accuracy']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
 
 
+#  Fine-Tuning:
+#  One way to increase performance even further is to train (or "fine-tune")
+#  the weights of the top layers of the pre-trained model alongside the training of the classifier you added.
+#  The training process will force the weights to be tuned from generic feature maps to features
+#  associated specifically with the dataset
 
+mobile_net_v2.trainable = True
+print('Number of layer in the base model: %d' % len(mobile_net_v2.layers))
+fine_tune_at = 100
+for l in mobile_net_v2.layers[:fine_tune_at]:  # freeze all layer before 'fine_tune_at'
+    l.trainable = False
+model.compile(
+    optimizer=keras.optimizers.RMSprop(learning_rate=1/100_000),  # lower the learning rate
+    loss=keras.losses.BinaryCrossentropy(from_logits=True),
+    metrics=['accuracy']
+)
+fine_tune_epochs = 10
+total_epochs = epochs + fine_tune_epochs
+history_fine = model.fit(
+    train_dataset, validation_data=validation_dataset, epochs=total_epochs, initial_epoch=history.epoch[-1]
+)
+# print_graph(history_fine.history['loss'], history_fine.history['val_loss'], 'Training Accuracy', 'Validation Accuracy',
+#             'Transfer Learning Accuracy', scatter=False)
+acc += history_fine.history['accuracy']
+val_acc += history_fine.history['val_accuracy']
+loss += history_fine.history['loss']
+val_loss += history_fine.history['val_loss']
 
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(acc, label='Training Accuracy')
+plt.plot(val_acc, label='Validation Accuracy')
+plt.ylim([0.8, 1])
+plt.plot([epochs-1, epochs-1], plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='lower right')
+plt.title('Training and Validation Accuracy')
 
+plt.subplot(2, 1, 2)
+plt.plot(loss, label='Training Loss')
+plt.plot(val_loss, label='Validation Loss')
+plt.ylim([0, 1.0])
+plt.plot([epochs-1, epochs-1], plt.ylim(), label='Start Fine Tuning')
+plt.legend(loc='upper right')
+plt.title('Training and Validation Loss')
+plt.xlabel('epoch')
 
-
-
-
-
-
-
-
-
-
+plt.show()
+plt.clf()
 
 
 
