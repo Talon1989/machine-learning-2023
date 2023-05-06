@@ -17,15 +17,16 @@ URL = 'https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip'
 BATCH_SIZE = 2**5
 IMG_SIZE = [160, 160]
 
+
+#  DOWNLOAD LABELLED IMAGES AND CREATE TRAIN / VALIDATION DATASETS
+
 path_to_zip = keras.utils.get_file('cats_and_dogs_zip', origin=URL, extract=True)
 PATH = os.path.join(os.path.dirname(path_to_zip), 'cats_and_dogs_filtered')
-train_directory = os.path.join(PATH, 'train')
-validation_directory = os.path.join(PATH, 'validation')
 train_dataset = keras.utils.image_dataset_from_directory(
-    directory=train_directory, shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
+    directory=os.path.join(PATH, 'train'), shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
 )
 validation_dataset = keras.utils.image_dataset_from_directory(
-    directory=validation_directory, shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
+    directory=os.path.join(PATH, 'validation'), shuffle=True, batch_size=BATCH_SIZE, image_size=IMG_SIZE
 )
 class_names = train_dataset.class_names
 
@@ -43,27 +44,19 @@ def show_some_vanilla_images(n=9):
     plt.clf()
 
 
-# show_some_vanilla_images(16)
+#  CREATE SOME TEST SET  (32 BATCHES, WE TAKE 6 FOR THE TEST)
 
-
-#  create some test set  (32 batches, we take 6 for the test)
 val_batches = tf.data.experimental.cardinality(validation_dataset)
 test_dataset = validation_dataset.take(val_batches // 5)
 validation_dataset = validation_dataset.skip(val_batches // 5)
 
 
-#  autotuning to use buffered prefetching to avoid i/o blocking
+#  AUTOTUNING TO USE BUFFERED PREFETCHING TO AVOID I/O BLOCKING
+
 AUTOTUNE = tf.data.AUTOTUNE
 train_dataset = train_dataset.prefetch(buffer_size=AUTOTUNE)
 validation_dataset = validation_dataset.prefetch(buffer_size=AUTOTUNE)
 test_dataset = test_dataset.prefetch(buffer_size=AUTOTUNE)
-
-
-#  sample diversification
-data_augmentation = keras.Sequential([
-    keras.layers.RandomFlip(mode='horizontal'),
-    keras.layers.RandomRotation(factor=0.2)
-])
 
 
 def show_some_image_augmentations(n=9):
@@ -80,19 +73,22 @@ def show_some_image_augmentations(n=9):
     plt.clf()
 
 
-#  get the base model
+###################################################################################
+
+
+#  GET THE BASE MODEL
 
 mobile_net_v2 = keras.applications.MobileNetV2(
     input_shape=IMG_SIZE + [3, ],
     include_top=False,
     weights='imagenet'
 )
-image_batch, label_batch = next(iter(train_dataset))
-feature_batch = mobile_net_v2(image_batch)
-print(feature_batch.shape)
+# image_batch, label_batch = next(iter(train_dataset))
+# feature_batch = mobile_net_v2(image_batch)
+# print(feature_batch.shape)
 
 
-#  Freeze the convolutional base
+#  FREEZE THE CONVOLUTIONAL BASE
 
 #  When you set layer.trainable = False
 #  the BatchNormalization layer will run in inference mode, and will not update its mean and variance statistics.
@@ -100,20 +96,25 @@ print(feature_batch.shape)
 mobile_net_v2.trainable = False
 
 
-#  Add a classification layers for output
+#  SAMPLE DIVERSIFICATION
+
+data_augmentation = keras.Sequential([
+    keras.layers.RandomFlip(mode='horizontal'),
+    keras.layers.RandomRotation(factor=0.2)
+])
+
+
+#  ADD A CLASSIFICATION LAYERS FOR OUTPUT
 
 global_average_layer = keras.layers.GlobalAveragePooling2D()
-feature_batch_average = global_average_layer(feature_batch)
-
-print(feature_batch_average.shape)
-
-prediction_layer = keras.layers.Dense(units=1)
-prediction_batch = prediction_layer(feature_batch_average)
-
-print(prediction_batch.shape)
+# feature_batch_average = global_average_layer(feature_batch)
+# print(feature_batch_average.shape)
+prediction_layer = keras.layers.Dense(units=1, activation='linear')
+# prediction_batch = prediction_layer(feature_batch_average)
+# print(prediction_batch.shape)
 
 
-#  Model building
+#  MODEL BUILDING
 
 inputs = keras.Input(shape=mobile_net_v2.input_shape[1:])  # first element is None
 x = data_augmentation(inputs)
@@ -131,7 +132,7 @@ model.compile(
 )
 
 
-#  Training
+#  TRAINING
 
 epochs = 10
 loss, accuracy = model.evaluate(validation_dataset)
@@ -148,16 +149,19 @@ loss = history.history['loss']
 val_loss = history.history['val_loss']
 
 
-#  Fine-Tuning:
+########################################################################################
+
+
+#  FINE-TUNING:
 #  One way to increase performance even further is to train (or "fine-tune")
 #  the weights of the top layers of the pre-trained model alongside the training of the classifier you added.
 #  The training process will force the weights to be tuned from generic feature maps to features
 #  associated specifically with the dataset
 
-mobile_net_v2.trainable = True
+mobile_net_v2.trainable = True  # unlock training for all layers
 print('Number of layer in the base model: %d' % len(mobile_net_v2.layers))
 fine_tune_at = 100
-for l in mobile_net_v2.layers[:fine_tune_at]:  # freeze all layer before 'fine_tune_at'
+for l in mobile_net_v2.layers[:fine_tune_at]:  # freeze all layers before 'fine_tune_at'
     l.trainable = False
 model.compile(
     optimizer=keras.optimizers.RMSprop(learning_rate=1/100_000),  # lower the learning rate
@@ -177,6 +181,7 @@ loss += history_fine.history['loss']
 val_loss += history_fine.history['val_loss']
 
 plt.figure(figsize=(8, 8))
+
 plt.subplot(2, 1, 1)
 plt.plot(acc, label='Training Accuracy')
 plt.plot(val_acc, label='Validation Accuracy')
