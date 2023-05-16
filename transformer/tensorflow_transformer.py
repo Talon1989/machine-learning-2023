@@ -21,7 +21,7 @@ BUFFER_SIZE = 20_000
 BATCH_SIZE = 2**6
 
 
-examples, metadata = tfds.load(
+examples, _ = tfds.load(
     name='ted_hrlr_translate/pt_to_en', with_info=True, as_supervised=True
 )
 train_examples, val_examples = examples['train'], examples['validation']
@@ -30,12 +30,14 @@ train_examples, val_examples = examples['train'], examples['validation']
 def print_examples(batch=3):
     for pt_examples, en_examples in train_examples.batch(batch).take(1):
         print('Examples in Portuguese:')
-        for pt in pt_examples.numpy():
-            print(pt.decode('utf-8'))
+        print(pt_examples)
+        # for pt in pt_examples.numpy():
+        #     print(pt.decode('utf-8'))
         print()
         print('Examples in English:')
-        for en in en_examples.numpy():
-            print(en.decode('utf-8'))
+        print(en_examples)
+        # for en in en_examples.numpy():
+        #     print(en.decode('utf-8'))
         print()
 
 
@@ -89,9 +91,24 @@ def graph_token_data():
     plt.clf()
 
 
-def make_batches(ds):
+######################################################################################
 
-    def prepare_batch(pt, en, max_tokens=128):
+
+#  BUILD TOKENIZED BATCHES
+
+
+#  The inputs are pairs of tokenized Portuguese and English sequences, (pt, en)
+#  and the labels are the same English sequences shifted by 1,
+#  this shift is so that at each location input en sequence, the label in the next token.
+#  This is so that at each timestep the true value (predicted or not by the output) is input of next timestep,
+#  now the model doesn't need to run sequentially, and we can use parallelism.
+#  This is called 'Teacher Forcing'
+
+
+#  builds tf.data.Dataset object set up to work with Keras, hardcoded to work with pt_en
+def make_tokenized_batches(ds):
+
+    def tokenize_batch(pt, en, max_tokens=128):
         pt = tokenizers.pt.tokenize(pt)
         pt = pt[:, :max_tokens]
         pt = pt.to_tensor()
@@ -103,24 +120,66 @@ def make_batches(ds):
 
         return (pt, en_inputs), en_labels
 
-    return ds.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).map(prepare_batch, tf.data.AUTOTUNE).prefetch(buffer_size=tf.data.AUTOTUNE)
+    return ds.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).map(tokenize_batch, tf.data.AUTOTUNE).prefetch(buffer_size=tf.data.AUTOTUNE)
 
 
-#  TEST DATASET
+train_batches = make_tokenized_batches(train_examples)
+val_batches = make_tokenized_batches(val_examples)
 
-train_batches = make_batches(train_examples)
-val_batches = make_batches(val_examples)
-
-
+######################################################################################
 
 
+#  POSITIONAL EMBEDDING
 
 
+def create_positional_encoding(length, depth):
+    depth = depth / 2
+    positions = np.reshape(np.arange(length), newshape=[-1, 1])
+    depths = np.expand_dims(np.arange(depth), axis=0) / depth
+    angle_rads = positions * (1 / (10_000 ** depths))
+    pos_encoding = np.concatenate([np.sin(angle_rads), np.cos(angle_rads)], axis=-1)
+    return tf.cast(pos_encoding, dtype=tf.float32)
 
 
+def graph_pos_encoding():
+    positional_encoding = create_positional_encoding(length=2**11, depth=2**9)
+    print(positional_encoding)
+    print(positional_encoding.shape)
+    plt.pcolormesh(positional_encoding.numpy().T, cmap='RdBu')
+    plt.xlabel('Position')
+    plt.ylabel('Depth')
+    plt.colorbar()
+    plt.show()
+    plt.clf()
 
 
+class PositionalEmbedding(keras.layers.Layer):
 
+    def __init__(self, vocab_size, depth_model):
+        super().__init__()
+        self.embedding = keras.layers.Embedding(input_dim=vocab_size, output_dim=depth_model, mask_zero=True)
+        self.positional_encoding = create_positional_encoding(length=2**11, depth=depth_model)
+        self.depth_model = depth_model
+
+    def compute_mask(self, *args, **kwargs):
+        return self.embedding.compute_mask(*args, **kwargs)
+
+    def call(self, x):
+        length = tf.shape(x)[1]
+        x = self.embedding(x)
+        x = x * tf.math.sqrt(tf.cast(self.depth_model, tf.float32))  # sets relative scale of embedding and pos encoding
+        x = x + self.positional_encoding[tf.newaxis, :length, :]
+        return x
+
+
+pt_embedding = PositionalEmbedding(vocab_size=tokenizers.pt.get_vocab_size(), depth_model=2**9)
+en_embedding = PositionalEmbedding(vocab_size=tokenizers.en.get_vocab_size(), depth_model=2**9)
+
+
+def print_embedded():
+    for (pt, en), en_Labels in train_batches.take(1):
+        en_emb = en_embedding(en)
+        print(en_emb)
 
 
 
