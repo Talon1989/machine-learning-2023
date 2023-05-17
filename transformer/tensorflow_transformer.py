@@ -182,10 +182,78 @@ def print_embedded():
         print(en_emb)
 
 
+######################################################################################
 
 
+#  MULTI HEAD ATTENTION LAYERS
 
 
+class BaseAttention(keras.layers.Layer):
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.mha = keras.layers.MultiHeadAttention(**kwargs)
+        self.add = keras.layers.Add()  # need to use Add() layer because '+' will not propagate
+        self.layer_normalization = keras.layers.LayerNormalization()
+
+
+class GlobalSelfAttention(BaseAttention):  # ENCODER MHA
+
+    def call(self, x):
+        attention_output = self.mha(
+            query=x, key=x, value=x
+        )
+        x = self.add([x, attention_output])
+        x = self.layer_normalization(x)
+        return x
+
+
+class CausalSelfAttention(BaseAttention):  # DECODER MMHA
+
+    def call(self, x):
+        attention_output = self.mha(
+            query=x, key=x, value=x, use_causal_mask=True
+        )
+        x = self.add([x, attention_output])
+        x = self.layer_normalization(x)
+        return x
+
+
+class CrossAttention(BaseAttention):  # DECODER MHA
+
+    def call(self, x, context):
+        attention_output, attention_scores = self.mha(
+            query=x, key=context, value=context, return_attention_scores=True
+        )
+        # self.last_attention_scores = attention_scores
+        x = self.add([x, attention_output])
+        x = self.layer_normalization(x)
+        return x
+
+
+def print_attention_shape():
+
+    for (pt, en), en_Labels in train_batches.take(1):
+
+        pt_emb = pt_embedding(pt)
+        print(pt_emb.shape)
+        en_emb = en_embedding(en)
+        print(en_emb.shape)
+
+        # sample_ca = CrossAttention(num_heads=2, key_dim=512)
+        # print(sample_ca(en_emb, pt_emb).shape)
+
+        # sample_gsa = GlobalSelfAttention(num_heads=2, key_dim=512)
+        # print(sample_gsa(pt_emb).shape)
+
+        sample_csa = CausalSelfAttention(num_heads=2, key_dim=512)
+        print(sample_csa(en_emb).shape)
+
+
+######################################################################################
+
+
+#  FEED FORWARD NETWORKS
 
 
 
