@@ -408,21 +408,72 @@ class Decoder(keras.layers.Layer):
         return x  # shape: (batch_size, target_seq_length, d_model)
 
 
-def print_decoder():
+# def print_decoder():
+#
+#     for (pt, en), en_Labels in train_batches.take(1):
+#
+#         pt_emb = pt_embedding(pt)  # this has to come from the encoder which has embedding in it
+#
+#         sample_decoder = Decoder(n_layers=4, d_model=512, n_heads=8, d_ff=2048, vocab_size=8000)
+#         print(sample_decoder(x=en, context=pt_emb).shape)
+#         print('last attention scores shape is %s' % sample_decoder.last_attention_scores.shape)
 
+
+######################################################################################
+
+
+#  THE TRANSFORMER
+
+
+class Transformer(keras.models.Model):
+
+    def __init__(self, n_layers, d_model, n_heads, d_ff, input_vocab_size, target_vocab_size, dropout_rate=1/10):
+        super().__init__()
+        self.encoder = Encoder(
+            n_layers, d_model, n_heads, d_ff, input_vocab_size, dropout_rate
+        )
+        self.decoder = Decoder(
+            n_layers, d_model, n_heads, d_ff, input_vocab_size, dropout_rate
+        )
+        self.final_layer = keras.layers.Dense(units=target_vocab_size)
+
+    def call(self, inputs):
+        context, x = inputs
+        context = self.encoder(context)     # (batch_size, context_len, d_model)
+        x = self.decoder(x, context)        # (batch_size, target_len, d_model)
+        logits = self.final_layer(x)        # (batch_size, target_len, target_vocab_size)
+        try:
+            del logits._keras_mask
+        except AttributeError:
+            pass
+        return logits
+
+
+def print_transformer():
+    n_layers = 4
+    d_model = 128
+    d_ff = 512
+    n_heads = 8
+    dropout_rate = 0.1
+    transformer = Transformer(
+        n_layers=n_layers,
+        d_model=d_model,
+        n_heads=n_heads,
+        d_ff=d_ff,
+        input_vocab_size=tokenizers.pt.get_vocab_size().numpy(),
+        target_vocab_size=tokenizers.en.get_vocab_size().numpy(),
+        dropout_rate=dropout_rate
+    )
     for (pt, en), en_Labels in train_batches.take(1):
-
-        pt_emb = pt_embedding(pt)  # this has to come from the encoder which has embedding in it
-
-        sample_decoder = Decoder(n_layers=4, d_model=512, n_heads=8, d_ff=2048, vocab_size=8000)
-        print(sample_decoder(x=en, context=pt_emb).shape)
+        output = transformer([pt, en])
+        print(output.shape)
+        print(transformer.decoder.decoder_layers[-1].last_attention_scores.shape)
 
 
+######################################################################################
 
 
-
-
-
+#  TRAINING
 
 
 
