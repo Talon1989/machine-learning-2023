@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import tensorflow_datasets as tfds
 import tensorflow as tf
 import tensorflow_text
+from scipy.special.cython_special import ker
+
 keras = tf.keras
 
 
@@ -473,17 +475,138 @@ def print_transformer():
 ######################################################################################
 
 
+#  CUSTOM LEARNING RATE
+
+
+#  we shall use a custom learning rate scheduler according to the formula in the original Transformer
+class CustomSchedule(keras.optimizers.schedules.LearningRateSchedule):
+
+    def get_config(self):
+        pass
+
+    def __init__(self, d_model, warmup_steps=4_000):
+        super().__init__()
+        self.d_model = tf.cast(d_model, dtype=tf.float32)
+        self.warmup_steps = warmup_steps
+
+    def __call__(self, step):
+        step = tf.cast(step, dtype=tf.float32)
+        arg1 = tf.math.rsqrt(step)
+        arg2 = step * (self.warmup_steps ** (-1.5))
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
+
+
+def plot_custom_learning_rate():
+    learning_rate_ = CustomSchedule(d_model=128)
+    plt.plot(learning_rate_(tf.range(40_000, dtype=tf.float32)))
+    plt.xlabel('train step')
+    plt.ylabel('learning rate')
+    plt.show()
+    plt.clf()
+
+
+######################################################################################
+
+
+#  LOSS AND METRICS
+
+
+def masked_loss(label, pred):
+    loss_object = keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+    loss = loss_object(label, pred)
+    mask = tf.cast(label != 0, dtype=loss.dtype)  # True if label != 0
+    loss = loss * mask
+    return tf.reduce_sum(loss) / tf.reduce_sum(mask)
+
+
+def masked_accuracy(label, pred):
+    pred = tf.argmax(pred, axis=2)
+    label = tf.cast(label, pred.dtype)
+    match = label == pred
+    mask = label != 0
+    match = tf.cast(match & mask, dtype=tf.float32)
+    mask = tf.cast(mask, dtype=tf.float32)
+    return tf.reduce_sum(match) / tf.reduce_sum(mask)
+
+
+######################################################################################
+
+
 #  TRAINING
 
 
+n_layers = 4
+d_model = 128
+d_ff = 512
+n_heads = 8
+dropout_rate = 0.1
 
 
+transformer = Transformer(
+    n_layers=n_layers,
+    d_model=d_model,
+    n_heads=n_heads,
+    d_ff=d_ff,
+    input_vocab_size=tokenizers.pt.get_vocab_size().numpy(),
+    target_vocab_size=tokenizers.en.get_vocab_size().numpy(),
+    dropout_rate=dropout_rate
+)
+learning_rate = CustomSchedule(d_model)
+custom_adam = keras.optimizers.Adam(learning_rate, beta_1=9/10, beta_2=98/100, epsilon=1e-9)
+transformer.compile(
+    loss=masked_loss,
+    optimizer=custom_adam,
+    metrics=[masked_accuracy]
+)
+# transformer.fit(
+#     train_batches,
+#     epochs=1,
+#     validation_data=val_batches
+# )
+# tf.saved_model.save(obj=transformer, export_dir='../data/transformer_translator/')
 
 
+class Translator(tf.Module):
 
+    def __init__(self, tokenizers, transformer):
+        super().__init__()
+        self.tokenizers = tokenizers
+        self.transformer = transformer
 
+    def __call__(self, sentence, max_length=128):
 
+        assert isinstance(sentence, tf.Tensor)
+        if len(sentence.shape) == 0:
+            # sentence = sentence[tf.newaxis]
+            sentence = np.expand_dims(sentence, axis=0)
+        sentence = self.tokenizers.pt.tokenize(sentence).to_tensor()
+        encoder_input = sentence
 
+        start_end = self.tokenizers.en.tokenize([''])[0]
+        start = np.expand_dims(start_end[0], axis=0)
+        end = np.expand_dims(start_end[1], axis=0)
+
+        output_array = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True).write(0, start)
+
+        for i in tf.range(max_length):
+
+            output = tf.transpose(output_array.stack())
+            predictions = self.transformer([encoder_input, output], training=False)[:, -1:, :]  # select last token
+            predicted_id = tf.argmax(predictions, axis=-1)
+
+            output_array = output_array.write(i+1, predicted_id[0])
+
+            if predicted_id == end:
+                break
+
+        output = tf.transpose(output_array.stack())
+        text = tokenizers.en.detokenize(output)[0]
+        tokens = tokenizers.en.lookup(output)[0]
+
+        self.transformer([encoder_input, output[:, :-1]], training=False)
+        attention_weights = self.transformer.decoder.last_attention_scores
+
+        return text, tokens, attention_weights
 
 
 
