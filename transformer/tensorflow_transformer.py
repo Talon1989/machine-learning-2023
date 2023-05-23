@@ -360,7 +360,7 @@ class Encoder(keras.layers.Layer):
 class DecoderLayer(keras.layers.Layer):
 
     def __init__(self, d_model, n_heads, d_ff, dropout_rate=1/10):
-        super().__init__()
+        super(DecoderLayer, self).__init__()
         self.causal_self_attention = CausalSelfAttention(num_heads=n_heads, key_dim=d_model, dropout=dropout_rate)
         self.cross_attention = CrossAttention(num_heads=n_heads, key_dim=d_model, dropout=dropout_rate)
         self.ffn = FeedForward(d_model=d_model, d_ff=d_ff, dropout_rate=dropout_rate)
@@ -390,7 +390,7 @@ class DecoderLayer(keras.layers.Layer):
 class Decoder(keras.layers.Layer):
 
     def __init__(self, n_layers, d_model, n_heads, d_ff, vocab_size, dropout_rate=1/10):
-        super().__init__()
+        super(Decoder, self).__init__()
         self.n_layers = n_layers
         self.d_model = d_model
         self.pos_embedding = PositionalEmbedding(vocab_size=vocab_size, dim_model=d_model)
@@ -564,6 +564,7 @@ transformer.compile(
 #     validation_data=val_batches
 # )
 # tf.saved_model.save(obj=transformer, export_dir='../data/transformer_translator/')
+# transformer = tf.saved_model.load(export_dir='../data/transformer_translator/')
 
 
 class Translator(tf.Module):
@@ -609,13 +610,51 @@ class Translator(tf.Module):
         return text, tokens, attention_weights
 
 
+def print_translation(sentence, tokens, ground_truth):
+    print('Sentence: %s' % sentence)
+    print('Prediction: %s' % tokens.numpy().decode('utf-8'))
+    print('Ground truth: %s' % ground_truth)
 
 
+translator = Translator(tokenizers, transformer)
+sentence = 'os meus vizinhos ouviram sobre esta ideia.'
+ground_truth = 'and my neighboring homes heard about this idea .'
+translated_text, translated_tokens, attention_weights = translator(tf.constant(sentence))
+print(translated_text.numpy().decode('utf-8'))
 
 
+######################################################################################
 
 
+#  PLOTTING ATTENTION VECTORS
 
+
+def plot_attention_head(input_tokens, translated_tokens, attention):
+
+    translated_tokens = translated_tokens[1:]  # skip <START>
+    ax = plt.gca()
+    ax.matshow(attention)
+    ax.set_xticks(range(len(input_tokens)))
+    ax.set_yticks(range(len(translated_tokens)))
+
+    ax.set_xticklabels([label.decode('utf-8') for label in input_tokens.numpy()], rotation=90)
+    ax.set_yticklabels([label.decode('utf-8') for label in translated_tokens.numpy()])
+
+    plt.show()
+    plt.clf()
+
+
+head = 0
+attention_heads = tf.squeeze(attention_weights, axis=0)
+attention = attention_heads[head]
+print(attention.shape)
+
+in_tokens = tf.convert_to_tensor([sentence])
+in_tokens = tokenizers.pt.tokenize(in_tokens).to_tensor()
+in_tokens = tokenizers.pt.lookup(in_tokens)[0]
+
+
+# plot_attention_head(in_tokens, translated_tokens, attention)
 
 
 
