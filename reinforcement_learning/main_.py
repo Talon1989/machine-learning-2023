@@ -2,7 +2,8 @@ import numpy as np
 import gym
 
 
-env = gym.make('CartPole-v1')
+# env = gym.make('CartPole-v1')
+env = gym.make('Pendulum-v1')
 
 
 def random_steps(environment: gym.wrappers.time_limit.TimeLimit, n_episodes=5):
