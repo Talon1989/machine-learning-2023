@@ -202,6 +202,8 @@ class TD3Tensorflow:
 # target_next_state_values = tf.math.minimum(td3.target_critic_1([states_, actions_]), td3.target_critic_2([states_, actions_]))
 
 
+#  CONSIDER USING VANILLA REPLAY BUFFER INSTEAD OF ZERO
+
 class SACTensorflow:
 
     def __init__(
@@ -219,7 +221,8 @@ class SACTensorflow:
         self.n_s, self.n_a = self.env.observation_space.shape[0], self.env.action_space.shape[0]
         self.min_action, self.max_action = self.env.action_space.low[0], self.env.action_space.high[0]
         self.gamma = gamma
-        self.buffer = ReplayBufferZeros(max_size=2_000, s_dim=self.n_s, a_dim=self.n_a)
+        # self.buffer = ReplayBufferZeros(max_size=2_000, s_dim=self.n_s, a_dim=self.n_a)
+        self.buffer = ReplayBuffer(max_size=2_000)
         self.batch_size = batch_size
         self.temperature = 1/10
         self.ema = tf.train.ExponentialMovingAverage(decay=995/1_000)
@@ -288,14 +291,19 @@ class SACTensorflow:
         return a
 
     def _store_transition(self, s, a, r, s_, d):
-        self.buffer.push(s, a, r, s_, int(d))
+        # self.buffer.push(s, a, r, s_, int(d))
+        self.buffer.remember(s, a, r, s_, int(d))
 
     def _train(self):
 
         if self.buffer.get_buffer_size() < self.batch_size:
             return
 
-        states, actions, rewards, states_, dones = self.buffer.sample(batch_size=self.batch_size)
+        # states, actions, rewards, states_, dones = self.buffer.sample(batch_size=self.batch_size)
+        states, actions, rewards, states_, dones = self.buffer.get_buffer(
+            batch_size=self.batch_size, randomized=True, cleared=False
+        )
+        rewards = np.reshape(rewards, [-1, 1])
         dones = np.reshape(dones, [-1, 1])
 
         with tf.GradientTape() as actor_tape:
