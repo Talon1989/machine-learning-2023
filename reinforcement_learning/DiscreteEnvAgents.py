@@ -45,7 +45,7 @@ class DeepQLearningTensorflow:
         layer = input_layer
         for h in hidden_shape:
             layer = keras.layers.Dense(units=h, activation='leaky_relu')(layer)
-        output_layer = keras.layers.Dense(units=self.n_a, activation='linear')(layer)
+        output_layer = keras.layers.Dense(units=self.n_a, activation='linear', dtype=tf.float64)(layer)
         model = keras.models.Model(input_layer, output_layer)
         return model
 
@@ -59,6 +59,28 @@ class DeepQLearningTensorflow:
             return self.env.action_space.sample()
         else:
             return np.argmax(self.main_nn(s))
+
+    #  hardcoded to work only for single state
+    def choose_action_softmax(self, s: np.ndarray):
+        s = tf.convert_to_tensor([s])
+        state_action_value = self.main_nn(s)[0]
+        # print(state_action_value)
+        exp_actions = np.zeros(self.n_a)
+        for a in range(self.n_a):
+            exp_actions[a] = np.exp(state_action_value[a])
+        softmax_values = exp_actions / np.sum(exp_actions)
+        softmax_values = np.round(softmax_values, 5)  # only works for n_a = 2
+        return np.random.choice(np.arange(self.n_a), p=softmax_values)
+
+    #  hardcoded to work only for single state
+    def choose_action_weighted_softmax(self, s: np.ndarray, weight):
+        s = tf.convert_to_tensor([s])
+        state_action_value = self.main_nn(s)[0]
+        exp_actions = np.zeros(self.n_a)
+        for a in range(self.n_a):
+            exp_actions[a] = np.exp(state_action_value[a] * weight)
+        softmax_values = exp_actions / np.sum(exp_actions)
+        return np.random.choice(np.arange(self.n_a), p=softmax_values)
 
     def store_transition(self, s, a, r, s_, d):
         self.buffer.remember(s, a, r, s_, d)
@@ -93,7 +115,9 @@ class DeepQLearningTensorflow:
             score = 0
             s = self.env.reset()[0]
             for i in range(self.env._max_episode_steps):
-                a = self.choose_action(s)
+                # a = self.choose_action(s)
+                a = self.choose_action_weighted_softmax(s, ep / (n_episodes+1))
+                # a = self.choose_action_softmax(s)
                 s_, r, d, t, _ = self.env.step(a)
                 score += r
                 r = 0 if d == 0 else -100
@@ -115,7 +139,9 @@ class DeepQLearningTensorflow:
             scores.append(score)
             avg_scores.append(np.sum(scores[-50:]) / len(scores[-50:]))
             if ep % 10 == 0:
-                print('Ep %d | Epsilon: %.3f | Avg score: %.3f' % (ep, self.epsilon, avg_scores[-1]))
+                # print('Ep %d | Epsilon: %.3f | Avg score: %.3f' % (ep, self.epsilon, avg_scores[-1]))
+                print('Ep %d | weight: %.3f | Avg score: %.3f' % (ep, (ep / (n_episodes+1)), avg_scores[-1]))
+                # print('Ep %d | Avg score: %.3f' % (ep, avg_scores[-1]))
                 self.target_nn_hard_update()
             if ep % 500 == 0 and graph:
                 print_graph(scores, avg_scores, 'scores', 'avg scores', 'DQL ep %d' % ep)
@@ -146,6 +172,10 @@ class DeepQLearningTensorflow:
                     break
                 s = s_
             print('Episode %d | Score: %.3f' % (ep, score))
+
+
+agent = DeepQLearningTensorflow(env_, [16, 16, 32, 32])
+agent.fit(n_episodes=1_500)
 
 
 class PolicyGradientMethodTensorflow:
@@ -387,8 +417,8 @@ class PolicyGradientActorCriticTensorflow:
         return self
 
 
-agent = PolicyGradientActorCriticTensorflow(env_, [16, 16, 32, 32], [16, 32, 64])
-agent.fit(graph=False)
+# agent = PolicyGradientActorCriticTensorflow(env_, [16, 16, 32, 32], [16, 32, 64])
+# agent.fit(graph=False)
 
 # agent = PolicyGradientMethodTensorflow(env_, [16, 16, 32, 32])
 # agent.fit()
