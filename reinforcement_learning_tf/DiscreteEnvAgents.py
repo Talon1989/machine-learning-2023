@@ -174,8 +174,8 @@ class DeepQLearningTensorflow:
             print('Episode %d | Score: %.3f' % (ep, score))
 
 
-agent = DeepQLearningTensorflow(env_, [16, 16, 32, 32])
-agent.fit(n_episodes=1_500)
+# agent = DeepQLearningTensorflow(env_, [16, 16, 32, 32])
+# agent.fit(n_episodes=1_500)
 
 
 class PolicyGradientMethodTensorflow:
