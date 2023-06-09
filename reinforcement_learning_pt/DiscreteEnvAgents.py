@@ -218,6 +218,7 @@ class PolicyGradientMethodPytorch:
     def _custom_loss(self, states, actions, norm_returns):
         states = torch.Tensor(states)
         actions = torch.Tensor(actions)
+        norm_returns = torch.Tensor(norm_returns)
         probabilities = self.actor_nn(states)
         distribution = torch.distributions.Categorical(probs=probabilities)
         log_action_probas = distribution.log_prob(value=actions)
@@ -244,10 +245,52 @@ class PolicyGradientMethodPytorch:
         return distribution.sample().item()
 
     def _train(self):
-        pass
+        states, actions, rewards, _, _ = self.buffer.get_buffer(
+            batch_size=self.buffer.get_buffer_size(), randomized=False, cleared=True
+        )
+        inverse_returns = []
+        discounted_sum = 0
+        for r in reversed(rewards):
+            discounted_sum = r + self.gamma * discounted_sum
+            inverse_returns.append(discounted_sum)
+        returns = np.array(inverse_returns[::-1])
+        normalized_returns = returns - (np.mean(returns)/np.std(returns))
+        losses = self._custom_loss(states, actions, normalized_returns)
+        self.optimizer.zero_grad()
+        losses.backward()
+        self.optimizer.step()
 
-    def fit(self, n_episodes=2_000, graph=True, save_model=False):
-        pass
+    def fit(self, n_episodes=5_000, graph=True, save_model=False):
+        scores, avg_scores = [], []
+        counter = 0
+        for ep in range(1, n_episodes + 1):
+            s = self.env.reset()[0]
+            score = 0
+            for i in range(self.env._max_episode_steps):
+                a = self._choose_action(s)
+                s_, r, d, t, _ = self.env.step(a)
+                self._store_transition(s, a, r)
+                score += r
+                if d or t:
+                    if i >= self.env._max_episode_steps - 1:
+                        counter += 1
+                    else:
+                        counter = 0
+                    break
+                s = s_
+            self._train()
+            scores.append(score)
+            avg_scores.append(np.sum(scores[-50:]) / len(scores[-50:]))
+            if counter >= 5:
+                print('Environment %s solved at episode %d' % (self.env.unwrapped.spec.id, ep))
+                if save_model:
+                    pass
+                return
+            if ep % 10 == 0:
+                print('Episode %d | avg score: %.3f' % (ep, avg_scores[-1]))
+            if ep % 200 == 0 and graph:
+                print_graph(scores, avg_scores, 'scores', 'avg scores', 'PGM episode %d' % ep)
+        return self
 
     def t_model(self, n_episodes=5):
         pass
@@ -263,9 +306,9 @@ class PolicyGradientMethodPytorch:
 
 
 agent = PolicyGradientMethodPytorch(env_, [16, 32, 64])
-nn = agent.actor_nn
+# nn = agent.actor_nn
 # states, actions, rewards, _, _ = agent.t_losses()
-
+agent.fit()
 
 
 
