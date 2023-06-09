@@ -190,5 +190,196 @@ class DeepQLearningPytorch:
             print('Episode %d | Score: %.3f' % (ep, score))
 
 
-agent = DeepQLearningPytorch(env_, [16, 16, 32, 32])
-agent.fit()
+# agent = DeepQLearningPytorch(env_, [16, 16, 32, 32])
+# agent.fit()
+
+
+class PolicyGradientMethodPytorch:
+
+    def __init__(
+            self,
+            env: gym.wrappers.time_limit.TimeLimit,
+            hidden_shape,
+            alpha = 1 / 1_000,
+            gamma=99 / 100,
+            batch_size=2 ** 6
+    ):
+        # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cpu')
+        self.env = env
+        self.n_s, self.n_a = self.env.observation_space.shape[0], self.env.action_space.n
+        self.gamma = gamma
+        self.batch_size = batch_size
+        self.buffer = ReplayBuffer(max_size=2_000)
+        self.actor_nn = self._build_nn(hidden_shape)
+        self.criterion = self._custom_loss
+        self.optimizer = torch.optim.Adam(params=self.actor_nn.parameters(), lr=alpha)
+
+    def _custom_loss(self, states, actions, norm_returns):
+        states = torch.Tensor(states)
+        actions = torch.Tensor(actions)
+        probabilities = self.actor_nn(states)
+        distribution = torch.distributions.Categorical(probs=probabilities)
+        log_action_probas = distribution.log_prob(value=actions)
+        losses = torch.sum(-log_action_probas * norm_returns)
+        return losses
+
+    def _build_nn(self, hidden_shape):
+        model = nn.Sequential()
+        for i in range(len(hidden_shape)):
+            module = nn.Linear(hidden_shape[i - 1] if i > 0 else self.n_s, hidden_shape[i])
+            model.add_module(name='l_%d' % (i + 1), module=module)
+            model.add_module(name='a_%d' % (i + 1), module=nn.ReLU())
+        model.add_module(name='l_out', module=nn.Linear(hidden_shape[-1], self.n_a))
+        model.add_module(name='a_out', module=nn.Softmax(dim=-1))
+        return model
+
+    def _store_transition(self, s, a, r):
+        self.buffer.remember(s, a, r, None, None)
+
+    def _choose_action(self, s):
+        s = torch.Tensor(s)
+        with torch.no_grad():
+            distribution = torch.distributions.Categorical(probs=self.actor_nn(s))
+        return distribution.sample().item()
+
+    def _train(self):
+        pass
+
+    def fit(self, n_episodes=2_000, graph=True, save_model=False):
+        pass
+
+    def t_model(self, n_episodes=5):
+        pass
+
+    def t_losses(self):
+        s = self.env.reset()[0]
+        for _ in range(5):
+            a = self.env.action_space.sample()
+            s_, r, d, t, _ = self.env.step(a)
+            self._store_transition(s, a, r)
+            s = s_
+        return self.buffer.get_buffer(batch_size=self.buffer.get_buffer_size(), randomized=False, cleared=True)
+
+
+agent = PolicyGradientMethodPytorch(env_, [16, 32, 64])
+nn = agent.actor_nn
+# states, actions, rewards, _, _ = agent.t_losses()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
