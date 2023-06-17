@@ -305,15 +305,137 @@ class PolicyGradientMethodPytorch:
         return self.buffer.get_buffer(batch_size=self.buffer.get_buffer_size(), randomized=False, cleared=True)
 
 
-agent = PolicyGradientMethodPytorch(env_, [16, 32, 64])
+# agent = PolicyGradientMethodPytorch(env_, [16, 32, 64])
 # nn = agent.actor_nn
 # states, actions, rewards, _, _ = agent.t_losses()
+# agent.fit()
+
+
+class ActorCriticPytorch:
+
+    def __init__(
+            self,
+            env: gym.wrappers.time_limit.TimeLimit,
+            hidden_shape_1,
+            hidden_shape_2,
+            alpha=1 / 1_000,
+            beta=1 / 500,
+            gamma=99 / 100,
+            batch_size=2 ** 6
+    ):
+        # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cpu')
+        self.env = env
+        self.n_s, self.n_a = self.env.observation_space.shape[0], self.env.action_space.n
+        self.gamma = gamma
+        self.batch_size = batch_size
+        self.buffer = ReplayBuffer(max_size=2_000)
+        self.actor_nn = self._build_actor_nn(hidden_shape_1)
+        self.critic_nn = self._build_critic_nn(hidden_shape_2)
+        self.actor_criterion = self._custom_loss
+        self.critic_criterion = nn.MSELoss()
+        self.actor_optimizer = torch.optim.Adam(params=self.actor_nn.parameters(), lr=alpha)
+        self.critic_optimizer = torch.optim.Adam(params=self.critic_nn.parameters(), lr=beta)
+
+    def _build_actor_nn(self, hidden_shape):
+        model = nn.Sequential()
+        for i in range(len(hidden_shape)):
+            module = nn.Linear(hidden_shape[i - 1] if i > 0 else self.n_s, hidden_shape[i])
+            model.add_module(name='l_%d' % (i + 1), module=module)
+            model.add_module(name='a_%d' % (i + 1), module=nn.ReLU())
+        model.add_module(name='l_out', module=nn.Linear(hidden_shape[-1], self.n_a))
+        model.add_module(name='a_out', module=nn.Softmax(dim=-1))
+        return model
+
+    def _build_critic_nn(self, hidden_shape):
+        model = nn.Sequential()
+        for i in range(len(hidden_shape)):
+            module = nn.Linear(hidden_shape[i - 1] if i > 0 else self.n_s, hidden_shape[i])
+            model.add_module(name='l_%d' % (i + 1), module=module)
+            model.add_module(name='a_%d' % (i + 1), module=nn.ReLU())
+        model.add_module(name='l_out', module=nn.Linear(hidden_shape[-1], 1))
+        return model
+
+    def _custom_loss(self, states, actions, returns, critic_values):
+        with torch.no_grad():
+            advantages = returns - critic_values
+        probabilities = self.actor_nn(states)
+        distribution = torch.distributions.Categorical(probs=probabilities)
+        log_action_probas = distribution.log_prob(value=actions)
+        losses = torch.sum(-log_action_probas * advantages)
+        return losses
+
+    def _choose_action(self, s):
+        s = torch.Tensor(s)
+        with torch.no_grad():
+            distribution = torch.distributions.Categorical(probs=self.actor_nn(s))
+        return distribution.sample().item()
+
+    def _store_transition(self, s, a, r):
+        self.buffer.remember(s, a, r, None, None)
+
+    def _train(self):
+        states, actions, rewards, _, _ = self.buffer.get_buffer(
+            batch_size=self.buffer.get_buffer_size(),
+            randomized=False,
+            cleared=True
+        )
+        states = torch.Tensor(states)
+        actions = torch.Tensor(actions)
+        inverse_returns = []
+        discounted_sum = 0
+        for r in reversed(rewards):
+            discounted_sum = r + self.gamma * discounted_sum
+            inverse_returns.append(discounted_sum)
+        returns = torch.Tensor(np.array(inverse_returns[::-1]))
+        returns = torch.reshape(returns, [-1, 1])
+        state_values = self.critic_nn(states)
+        # training actor
+        actor_losses = self.actor_criterion(states, actions, returns, state_values)
+        self.actor_optimizer.zero_grad()
+        actor_losses.backward()
+        self.actor_optimizer.step()
+        # training critic
+        critic_losses = self.critic_criterion(state_values, returns)
+        self.critic_optimizer.zero_grad()
+        critic_losses.backward()
+        self.critic_optimizer.step()
+
+    def fit(self, n_episodes=5_000, graph=True, save_model=False):
+        scores, avg_scores = [], []
+        counter = 0
+        for ep in range(1, n_episodes + 1):
+            s = self.env.reset()[0]
+            score = 0
+            for i in range(self.env._max_episode_steps):
+                a = self._choose_action(s)
+                s_, r, d, t, _ = self.env.step(a)
+                self._store_transition(s, a, r)
+                score += r
+                if d or t:
+                    if i >= self.env._max_episode_steps - 1:
+                        counter += 1
+                    else:
+                        counter = 0
+                    break
+                s = s_
+            self._train()
+            scores.append(score)
+            avg_scores.append(np.sum(scores[-50:]) / len(scores[-50:]))
+            if counter >= 5:
+                print('Environment %s solved at episode %d' % (self.env.unwrapped.spec.id, ep))
+                if save_model:
+                    pass
+                return
+            if ep % 10 == 0:
+                print('Episode %d | avg score: %.3f' % (ep, avg_scores[-1]))
+            if ep % 200 == 0 and graph:
+                print_graph(scores, avg_scores, 'scores', 'avg scores', 'PGM episode %d' % ep)
+        return self
+
+
+agent = ActorCriticPytorch(env_, [16, 32, 64], [16, 32, 64])
 agent.fit()
-
-
-
-
-
 
 
 
